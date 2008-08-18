@@ -1,0 +1,84 @@
+def weechat_init
+  @plugin_name = "\x0311TopicTool\x0F"
+  @help_text = <<EOT
+
+#{@plugin_name} -- a topic mangling plugin for WeeChat
+Available commands:
+
+length           -- return current length of topic
+append <blurb>   -- appends <blurb> to | delimited topic
+EOT
+
+  Weechat.register("tt", "0.1", "deinit", "TopicTool topic mangling plugin.")
+  Weechat.add_command_handler("tt", "tt_handler", "", "", @help_text, "length|append")
+
+  @max_len = 307
+
+  Weechat.print_server "#{@plugin_name} loaded."
+end
+
+def tt_handler(server, args)
+  cmd = args.split(' ')[0]
+  if !cmd
+    Weechat.print_server "You must specify an action."
+  else
+    case cmd.downcase
+      when 'length' then
+	return print_topic_length
+      when 'append' then
+	return append_blurb(args.split(' ')[1..-1].join(' '))
+      else
+        Weechat.print_server "'#{cmd}' not understood."
+      end
+  end
+  return Weechat::PLUGIN_RC_OK
+end
+
+def append_blurb(blurb)
+  return Weechat::PLUGIN_RC_OK if !blurb
+  return Weechat::PLUGIN_RC_OK if blurb.length < 1
+
+#  Weechat.print("blurb: #{blurb}")
+  t = get_topic.split('|').collect{|x| x.strip}
+  t << blurb
+  while t.join(' | ').length > @max_len
+    t.shift
+  end
+  if t.length > 0
+    new_topic = t.join(' | ')
+#    Weechat.print("new topic: '#{new_topic}'")
+#    Weechat.print("new topic length: '#{new_topic.length}'")
+    Weechat.command("/topic #{new_topic}", Weechat.get_info("channel"), Weechat.get_info("server"))
+  end
+
+  return Weechat::PLUGIN_RC_OK
+end
+
+def get_topic
+  t = nil
+  channels = Weechat.get_channel_info(Weechat.get_info("server"))
+  if channels != nil
+    if channels == {}
+      Weechat.print_server("no channel")
+    else
+      channel = Weechat.get_info("channel")
+      t = channels[channel]['topic']
+    end
+  else
+    Weechat.print_server("error while getting channels")
+  end
+
+  return t
+end
+
+
+def print_topic_length
+  Weechat.print("topic length: #{get_topic.length}")
+
+  return Weechat::PLUGIN_RC_OK
+end
+
+
+def deinit
+  return Weechat::PLUGIN_RC_OK
+end

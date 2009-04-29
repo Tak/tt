@@ -17,10 +17,18 @@ class TopicTool < ShortBus
     append <blurb>    -- appends <blurb> to |-delimited topic
     undo <number>     -- removes N |-delimited blurbs from the end of the topic
     preserve <number> -- preserves the first N |-delimited blurbs for the current channel
+    test              -- prints a dry run of the appended topic
+    accept            -- commits a tested topic
+    quote <nick>      -- appends nick's last statement and tests
 EOT
     @preserve = {}
+    @ACTION = /^\001ACTION.*\001/
+	@statements = {}
+    @pending = ''
 
     hook_command('TT', XCHAT_PRI_NORM, method( :tt_handler), @help_text)
+    hook_server('PRIVMSG', XCHAT_PRI_NORM, method(:buffer_message))
+    hook_print('Your Message', XCHAT_PRI_NORM, method(:your_message))
     @max_len = 307
 
     debug('Loaded.')
@@ -57,6 +65,15 @@ EOT
 	    debug('Error undoing blurbs')
 	  end
 	  return XCHAT_EAT_ALL
+    when 'test' then
+      print_test(words_eol[2])
+      return XCHAT_EAT_ALL
+    when 'accept' then
+      if(@pending) then set_topic(@pending); end
+      return XCHAT_EAT_ALL
+    when 'quote' then
+      quote(words_eol[2].gsub(/[|\s]/,''))
+      return XCHAT_EAT_ALL
       end
     end
 
@@ -86,7 +103,21 @@ EOT
 
   # Appends a string to the channel topic
   def append_blurb(blurb)
-    if(!blurb || 1 > blurb.length) then return XCHAT_EAT_ALL; end
+    # Set new topic
+    if((topic = generate_topic(blurb)))
+      set_topic(topic)
+    end
+
+    return XCHAT_EAT_ALL
+  end
+
+  def set_topic(topic)
+    command("TOPIC #{topic}")
+    @pending = nil
+  end
+
+  def generate_topic(blurb)
+    if(!blurb || 1 > blurb.length) then return nil; end
 
     # Tokenize the topic and add the new string
     t = get_topic.split('|').collect{|x| x.strip}
@@ -101,13 +132,11 @@ EOT
       t.shift
     end
 
-    # Set new topic
     if t.length > 0
-      new_topic = (p + t).join(' | ')
-      command("TOPIC #{new_topic}")
+      return (p + t).join(' | ')
     end
 
-    return XCHAT_EAT_ALL
+    return nil
   end
 
   def get_topic
@@ -119,6 +148,60 @@ EOT
     debug("Topic length: #{get_topic.length}")
 
     return XCHAT_EAT_ALL
+  end
+
+  def print_test(blurb)
+    @pending = generate_topic(blurb)
+	debug(@pending)
+  end
+
+  def buffer_message(words, words_eol, data)
+    mynick = words[0].sub(/^:([^!]*)!.*/,'\1').gsub(/\|/, '')
+    channel = words[2]
+
+    # Strip intermittent trailing @ word
+    if(words.last == '@')
+      words.pop()
+      words_eol.collect!{ |w| w.gsub(/\s+@$/,'') }
+    end
+
+    if(3<words_eol.size)
+        sometext = words_eol[3].sub(/^:/,'')
+    end
+    if(!sometext || @ACTION.match(sometext)) then return nil; end
+
+    storekey = "#{mynick}|#{channel}"
+    @statements[storekey] = "<#{mynick}> #{sometext}"
+  end
+
+  def your_message(words, data)
+    begin
+      words_eol = []
+      # Build an array of the format process_message expects
+      newwords = [words[0], 'PRIVMSG', get_info('channel')] + (words - [words[0]]) 
+      
+      #puts("Outgoing message: #{words.join(' ')}")
+      
+      # Populate words_eol
+      1.upto(newwords.size){ |i|
+        words_eol << (i..newwords.size).inject(''){ |str, j|
+          "#{str}#{newwords[j-1]} "
+        }.strip()
+      }
+      
+      buffer_message(newwords, words_eol, data)
+    rescue
+      # puts($!)
+    end
+  end
+
+  def quote(nick)
+    storekey = "#{nick}|#{get_info('channel')}"
+    if(@statements[storekey]) 
+      print_test(@statements[storekey]); 
+    else
+      debug("No statement stored for #{storekey}")
+    end
   end
 end # TopicTool
 

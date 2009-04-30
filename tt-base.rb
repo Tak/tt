@@ -57,3 +57,45 @@ class TopicToolBase
     return @statements[key]
   end # retrieve
 end # TopicToolBase
+
+if (__FILE__ == $0)
+  require 'test/unit'
+
+  class TopicToolBaseTest < Test::Unit::TestCase
+    def setup()
+      @tt = TopicToolBase.new()
+    end # setup
+
+    def test_append()
+      blurbs = [ ['foo','foo'],
+                ['bar','foo | bar'],
+                ['baz','foo | bar | baz'],
+                ['meh','foo | bar | baz | meh'],
+                ['xyzzy','foo | bar | baz | meh | xyzzy'],
+                ['AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA','xyzzy | AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA']
+               ]
+                
+      blurbs.inject(''){ |accum,pair|
+        new_topic = @tt.generate_topic(pair[0], accum, '#test')
+        assert_equal(pair[1], new_topic)
+        new_topic
+      }
+    end # test_append
+
+    def test_undo()
+      topic = 'foo | bar | baz | meh | xyzzy'
+      blurbs = [ [1, 'foo | bar | baz | meh'],
+                 [2, 'foo | bar' ],
+                 [5, '.'],
+                 [0, nil ],
+                 [-1, nil ]
+               ]
+
+      blurbs.inject(topic){ |accum,pair|
+        newtopic = @tt.undo_blurbs(pair[0], accum)
+        assert_equal(pair[1], newtopic)
+        newtopic
+      }
+    end # test_undo
+  end # TopicToolBaseTest
+end

@@ -1,12 +1,14 @@
 #!/usr/bin/env ruby
 
 require 'shortbus'
+require 'tt-base'
 
 # Plugin for auto-rotating a |-delimited topic based on a given topic length
 class TopicTool < ShortBus
 
   def initialize
     super
+    @tt= TopicToolBase.new()
     @plugin_name = "\x0311TopicTool\x0F"
     @help_text = <<EOT
 
@@ -21,15 +23,12 @@ class TopicTool < ShortBus
     accept            -- commits a tested topic
     quote <nick>      -- appends nick's last statement and tests
 EOT
-    @preserve = {}
     @ACTION = /^\001ACTION.*\001/
-	@statements = {}
     @pending = ''
 
     hook_command('TT', XCHAT_PRI_NORM, method( :tt_handler), @help_text)
     hook_server('PRIVMSG', XCHAT_PRI_NORM, method(:buffer_message))
     hook_print('Your Message', XCHAT_PRI_NORM, method(:your_message))
-    @max_len = 307
 
     debug('Loaded.')
   end
@@ -53,14 +52,15 @@ EOT
           return append_blurb(words_eol[2])
 	when 'preserve' then
 	  begin
-	    preserve_blurbs(words_eol[2].to_i())
+	    channel = get_info('channel')
+	    debug("Preserving #{@tt.preserve_blurbs(channel, words_eol[2].to_i())} blurbs for #{channel}.")
 	  rescue
 	    debug('Error setting preservation count')
 	  end
 	  return XCHAT_EAT_ALL
 	when 'undo' then
 	  begin
-	    undo_blurbs(words_eol[2].to_i())
+	    set_topic(@tt.undo_blurbs(words_eol[2].to_i(), get_topic()))
 	  rescue
 	    debug('Error undoing blurbs')
 	  end
@@ -82,21 +82,17 @@ EOT
     return XCHAT_EAT_ALL
   end
 
-  # Removes num blurbs from the end of the current topic
-  def undo_blurbs(num)
-    if(!num || (num <= 0)) then return; end
-
-    t = get_topic().split('|').collect{|x| x.strip()}
-    t = ((num >= t.length) ? ['.'] : t[0,t.length-num])
-    command("TOPIC #{t.join(' | ')}")
+  def set_topic(topic)
+    command("TOPIC #{topic}")
+    @pending = nil
   end
 
-  # Preserves num blurbs for the current channel
-  def preserve_blurbs(num)
-    if(num < 0) then num = 0; end
-    channel = get_info('channel')
-    @preserve[channel] = num
-    debug("Preserving #{@preserve[channel]} blurbs for #{channel}.")
+  def get_topic
+    return get_info('topic')
+  end
+
+  def print_topic_length
+    debug("Topic length: #{get_topic().length}")
 
     return XCHAT_EAT_ALL
   end
@@ -104,55 +100,17 @@ EOT
   # Appends a string to the channel topic
   def append_blurb(blurb)
     # Set new topic
-    if((topic = generate_topic(blurb)))
+    if((topic = @tt.generate_topic(blurb, get_topic(), get_info('channel'))))
       set_topic(topic)
     end
 
     return XCHAT_EAT_ALL
   end
 
-  def set_topic(topic)
-    command("TOPIC #{topic}")
-    @pending = nil
-  end
-
-  def generate_topic(blurb)
-    if(!blurb || 1 > blurb.length) then return nil; end
-
-    # Tokenize the topic and add the new string
-    t = get_topic.split('|').collect{|x| x.strip}
-    t << blurb
-
-    # Preserve the to-be-preserved blurbs
-    count = @preserve[get_info('channel')]
-    p = (count ? t.slice!(0, count) : [])
-
-    # Trim tokens from the front until we're under the max length
-    while (p + t).join(' | ').length > @max_len
-      t.shift
-    end
-
-    if t.length > 0
-      return (p + t).join(' | ')
-    end
-
-    return nil
-  end
-
-  def get_topic
-    return get_info('topic')
-  end
-
-
-  def print_topic_length
-    debug("Topic length: #{get_topic.length}")
-
-    return XCHAT_EAT_ALL
-  end
 
   def print_test(blurb)
-    @pending = generate_topic(blurb)
-	debug(@pending)
+    @pending = @tt.generate_topic(blurb, get_topic(), get_info('channel'))
+    debug(@pending)
   end
 
   def buffer_message(words, words_eol, data)
@@ -171,7 +129,7 @@ EOT
     if(!sometext || @ACTION.match(sometext)) then return nil; end
 
     storekey = "#{mynick}|#{channel}"
-    @statements[storekey] = "<#{mynick}> #{sometext}"
+    @tt.store(storekey, "<#{mynick}> #{sometext}")
   end
 
   def your_message(words, data)
@@ -197,8 +155,9 @@ EOT
 
   def quote(nick)
     storekey = "#{nick}|#{get_info('channel')}"
-    if(@statements[storekey]) 
-      print_test(@statements[storekey]); 
+    message = @tt.retrieve(storekey)
+    if(message) 
+      print_test(message)
     else
       debug("No statement stored for #{storekey}")
     end

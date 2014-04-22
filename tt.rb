@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-require 'tt-base'
+require_relative 'tt-base'
 
 include XChatRuby
 

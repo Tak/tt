@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
-require 'shortbus'
-require 'tt-base'
+require_relative 'shortbus'
+require_relative 'tt-base'
 
 # Plugin for auto-rotating a |-delimited topic based on a given topic length
 class TopicTool < ShortBus

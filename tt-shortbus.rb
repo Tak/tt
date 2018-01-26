@@ -38,7 +38,7 @@ EOT
   end
 
   # Handler for TT commands
-  # * words is each word in the command 
+  # * words is each word in the command
   #  * words[0] = 'TT'
   #  * words[1] = the command
   #  * words_eol[2] = hopefully, the string to be appended to the topic
@@ -50,21 +50,21 @@ EOT
           return print_topic_length
         when 'append' then
           return append_blurb(words_eol[2])
-	when 'preserve' then
-	  begin
-	    channel = get_info('channel')
-	    debug("Preserving #{@tt.preserve_blurbs(channel, words_eol[2].to_i())} blurbs for #{channel}.")
-	  rescue
-	    debug('Error setting preservation count')
-	  end
-	  return XCHAT_EAT_ALL
-	when 'undo' then
-	  begin
-	    set_topic(@tt.undo_blurbs(words_eol[2].to_i(), get_topic()))
-	  rescue
-	    debug('Error undoing blurbs')
-	  end
-	  return XCHAT_EAT_ALL
+  when 'preserve' then
+    begin
+      channel = get_info('channel')
+      debug("Preserving #{@tt.preserve_blurbs(channel, words_eol[2].to_i())} blurbs for #{channel}.")
+    rescue
+      debug('Error setting preservation count')
+    end
+    return XCHAT_EAT_ALL
+  when 'undo' then
+    begin
+      set_topic(@tt.undo_blurbs(words_eol[2].to_i(), get_topic()))
+    rescue
+      debug('Error undoing blurbs')
+    end
+    return XCHAT_EAT_ALL
     when 'test' then
       print_test(words_eol[2])
       return XCHAT_EAT_ALL
@@ -136,17 +136,17 @@ EOT
     begin
       words_eol = []
       # Build an array of the format process_message expects
-      newwords = [words[0], 'PRIVMSG', get_info('channel')] + (words - [words[0]]) 
-      
+      newwords = [words[0], 'PRIVMSG', get_info('channel')] + (words - [words[0]])
+
       #puts("Outgoing message: #{words.join(' ')}")
-      
+
       # Populate words_eol
       1.upto(newwords.size){ |i|
         words_eol << (i..newwords.size).inject(''){ |str, j|
           "#{str}#{newwords[j-1]} "
         }.strip()
       }
-      
+
       buffer_message(newwords, words_eol, data)
     rescue
       # puts($!)
@@ -156,7 +156,7 @@ EOT
   def quote(nick)
     storekey = "#{nick}|#{get_info('channel')}"
     message = @tt.retrieve(storekey)
-    if(message) 
+    if(message)
       print_test(message)
     else
       debug("No statement stored for #{storekey}")
@@ -165,6 +165,6 @@ EOT
 end # TopicTool
 
 if (__FILE__ == $0)
-	blah = TopicTool.new()
-	blah.run()
+  blah = TopicTool.new()
+  blah.run()
 end
